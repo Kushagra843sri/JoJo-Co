@@ -8,6 +8,8 @@ import {
   updateProfile,
   verifyEmail,
   resendVerificationEmail,
+  forgotPassword,
+  resetPassword,
 } from '../controllers/authController.js';
 import { generateGoogleAuthToken } from '../config/passport.js';
 import { protectRoute } from '../middleware/authMiddleware.js';
@@ -21,6 +23,8 @@ router.get('/profile', protectRoute, getProfile);
 router.patch('/profile', protectRoute, updateProfile);
 router.post('/verify-email', verifyEmail);
 router.post('/resend-verification', protectRoute, resendVerificationEmail);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 

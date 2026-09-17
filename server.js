@@ -75,6 +75,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/v1/auth/register', authLimiter);
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/resend-verification', resendVerificationLimiter);
+// Same tight quota as resend-verification — this also burns a Resend send.
+app.use('/api/v1/auth/forgot-password', resendVerificationLimiter);
+app.use('/api/v1/auth/reset-password', authLimiter);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/orders', orderRoutes);

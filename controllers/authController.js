@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import generateToken, { AUTH_COOKIE_OPTIONS } from '../utils/generateToken.js';
-import { sendVerificationEmail } from '../utils/sendEmail.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
 
 // Format only — confirms the string is shaped like an email, not that the
 // mailbox actually exists or belongs to the registrant. See email verification
@@ -186,6 +186,79 @@ export const resendVerificationEmail = async (req, res) => {
   } catch (err) {
     console.error(`resendVerificationEmail error: ${err.message}`);
     return res.status(500).json({ message: 'Server error while sending verification email' });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    // A Google-only account has no password to reset — sending it a "reset"
+    // link would be a dead end (resetPassword would just give it a password
+    // field a login form never checks first, since passport's own strategy
+    // path doesn't look at it either). Both this and "no account at all" are
+    // deliberately answered identically below, so the response never reveals
+    // which case happened — confirming/denying an email's existence here is
+    // a user-enumeration leak.
+    if (user && user.password) {
+      await sendPasswordResetEmail(user);
+    }
+
+    return res.status(200).json({
+      message: 'If an account exists for that email, a password reset link has been sent.',
+    });
+  } catch (err) {
+    console.error(`forgotPassword error: ${err.message}`);
+    return res.status(500).json({ message: 'Server error while requesting password reset' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+    }
+    if (decoded.purpose !== 'reset-password') {
+      return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+    }
+
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Account not found' });
+    }
+
+    // See generatePasswordResetToken: the token carries a fragment of the
+    // password hash it was issued against, so a token from before an earlier
+    // reset (or any other password change) fails here even though it hasn't
+    // technically expired yet.
+    const currentFingerprint = user.password ? user.password.slice(-12) : null;
+    if (decoded.pwFingerprint !== currentFingerprint) {
+      return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    await user.save();
+
+    return res.status(200).json({ message: 'Password reset — you can now sign in with your new password' });
+  } catch (err) {
+    console.error(`resetPassword error: ${err.message}`);
+    return res.status(500).json({ message: 'Server error while resetting password' });
   }
 };
 
