@@ -18,7 +18,30 @@ const app = express();
 // Cashfree's webhook is a server-to-server call from Cashfree's IPs, never a
 // browser — CSP/frame headers on it would be meaningless, so it's excluded below.
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
+
+// Vercel assigns a fresh, randomly-hashed URL to every deployment of the
+// frontend (e.g. jo-jo-co-frontend-<hash>.vercel.app) in addition to the
+// stable CLIENT_URL alias below — a plain string match against CLIENT_URL
+// alone means CORS (and therefore login/register) breaks every time someone
+// opens a specific deployment's own URL instead of hunting down the current
+// stable one. Scoped narrowly to this exact project's Vercel subdomain
+// prefix, not all of *.vercel.app, so this doesn't open the API up to every
+// other Vercel-hosted site.
+const staticAllowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+const vercelPreviewPattern = /^https:\/\/jo-jo-co-frontend(-[a-z0-9]+)*\.vercel\.app$/;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || origin === staticAllowedOrigin || vercelPreviewPattern.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use('/api/v1/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(cookieParser());
