@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
+import { sendNewOrderNotificationEmail } from '../utils/sendEmail.js';
 
 const CASHFREE_BASE_URL =
   process.env.CASHFREE_ENV === 'production'
@@ -88,7 +89,7 @@ export const initializePayment = async (req, res) => {
     createdOrder = await Order.create({
       user: req.user._id,
       items: orderItems,
-      shippingAddress,
+      shippingAddress: { ...shippingAddress, phone: customerPhone },
       financialSummary: { subtotal, shipping, tax, totalAmount },
       cashfreeOrderId,
       paymentStatus: 'pending',
@@ -187,6 +188,7 @@ export const handleCashfreeWebhook = async (req, res) => {
     }
 
     const eventType = payload?.type || 'UNKNOWN_EVENT';
+    const isNewlyPaid = eventType === 'PAYMENT_SUCCESS_WEBHOOK' && order.paymentStatus !== 'paid';
 
     if (eventType === 'PAYMENT_SUCCESS_WEBHOOK') {
       // Stock is only ever decremented here, on confirmed payment — not at checkout
@@ -195,7 +197,7 @@ export const handleCashfreeWebhook = async (req, res) => {
       // availability check in initializePayment before either one's webhook lands,
       // which can drive stock negative here. That's treated as a backorder signal
       // for the admin to act on rather than a reason to reject an already-captured payment.
-      if (order.paymentStatus !== 'paid') {
+      if (isNewlyPaid) {
         for (const item of order.items) {
           const result = await Product.updateOne(
             { _id: item.product, variants: { $elemMatch: { size: item.variant.size, color: item.variant.color } } },
@@ -216,6 +218,18 @@ export const handleCashfreeWebhook = async (req, res) => {
 
     order.webhookLogs.push({ event: eventType, payload });
     await order.save();
+
+    if (isNewlyPaid) {
+      // Fire-and-forget, and deliberately re-fetched rather than populated in
+      // place on `order` above — populating a ref path on a document you're
+      // about to .save() risks Mongoose re-casting the populated subdocs back
+      // through the ObjectId path. A fresh read has no such risk, and a failed
+      // notification email should never affect webhook processing.
+      Order.findById(order._id)
+        .populate('items.product', 'title')
+        .then((populatedOrder) => populatedOrder && sendNewOrderNotificationEmail(populatedOrder))
+        .catch((err) => console.error(`Failed to load order for notification email: ${err.message}`));
+    }
 
     return res.status(200).json({ message: 'Webhook processed' });
   } catch (err) {

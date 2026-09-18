@@ -65,6 +65,55 @@ export const sendVerificationEmail = async (user) => {
   }
 };
 
+// order must already have items.product populated with at least `title`.
+export const sendNewOrderNotificationEmail = async (order) => {
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
+
+  if (!adminEmail) {
+    console.warn('ADMIN_NOTIFICATION_EMAIL not configured — skipping new-order notification email.');
+    return;
+  }
+
+  if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.startsWith('temp-placeholder')) {
+    console.warn(
+      `RESEND_API_KEY not configured — skipping new-order notification email for order ${order.cashfreeOrderId}.`
+    );
+    return;
+  }
+
+  const itemsHtml = order.items
+    .map(
+      (item) =>
+        `<li>${item.quantity} × ${item.product?.title || 'Unknown product'} (${item.variant.size} / ${item.variant.color})</li>`
+    )
+    .join('');
+
+  const addr = order.shippingAddress;
+
+  try {
+    await getResendClient().emails.send({
+      from: FROM_EMAIL,
+      to: adminEmail,
+      subject: `New paid order — ${order.cashfreeOrderId}`,
+      html: `
+        <p>A new order has been paid and needs fulfillment.</p>
+        <p><strong>Order ID:</strong> ${order.cashfreeOrderId}<br/>
+        <strong>Total:</strong> ₹${order.financialSummary.totalAmount}</p>
+        <p><strong>Items:</strong></p>
+        <ul>${itemsHtml}</ul>
+        <p><strong>Deliver to:</strong><br/>
+        ${addr.fullName}<br/>
+        ${addr.phone}<br/>
+        ${addr.street || ''}<br/>
+        ${addr.city || ''}, ${addr.state || ''} ${addr.zip || ''}<br/>
+        ${addr.country || ''}</p>
+      `,
+    });
+  } catch (err) {
+    console.error(`Failed to send new-order notification email for ${order.cashfreeOrderId}: ${err.message}`);
+  }
+};
+
 export const sendPasswordResetEmail = async (user) => {
   if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.startsWith('temp-placeholder')) {
     console.warn(
