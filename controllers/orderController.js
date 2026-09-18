@@ -41,7 +41,9 @@ export const updateOrderStatus = async (req, res) => {
       id,
       { fulfillmentStatus: status },
       { new: true, runValidators: true }
-    );
+    )
+      .populate('user', 'name email')
+      .populate('items.product', 'title images');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
