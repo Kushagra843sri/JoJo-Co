@@ -51,7 +51,8 @@ const orderSchema = new mongoose.Schema(
       tax: { type: Number, required: true, min: 0, default: 0 },
       totalAmount: { type: Number, required: true, min: 0 },
     },
-    cashfreeOrderId: { type: String, unique: true, sparse: true },
+    razorpayOrderId: { type: String, unique: true, sparse: true },
+    razorpayPaymentId: { type: String },
     paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' },
     fulfillmentStatus: {
       type: String,

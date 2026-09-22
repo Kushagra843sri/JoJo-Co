@@ -1,10 +1,10 @@
 import express from 'express';
-import { initializePayment, handleCashfreeWebhook } from '../controllers/paymentController.js';
+import { initializePayment, handleRazorpayWebhook } from '../controllers/paymentController.js';
 import { protectRoute } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.post('/checkout', protectRoute, initializePayment);
-router.post('/webhook', handleCashfreeWebhook);
+router.post('/webhook', handleRazorpayWebhook);
 
 export default router;

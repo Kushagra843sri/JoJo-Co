@@ -15,7 +15,7 @@ import userRoutes from './routes/userRoutes.js';
 
 const app = express();
 
-// Cashfree's webhook is a server-to-server call from Cashfree's IPs, never a
+// Razorpay's webhook is a server-to-server call from Razorpay's IPs, never a
 // browser — CSP/frame headers on it would be meaningless, so it's excluded below.
 app.use(helmet());
 

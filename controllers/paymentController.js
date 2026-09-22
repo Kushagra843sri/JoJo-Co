@@ -3,10 +3,7 @@ import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import { sendNewOrderNotificationEmail } from '../utils/sendEmail.js';
 
-const CASHFREE_BASE_URL =
-  process.env.CASHFREE_ENV === 'production'
-    ? 'https://api.cashfree.com/pg'
-    : 'https://sandbox.cashfree.com/pg';
+const RAZORPAY_ORDERS_URL = 'https://api.razorpay.com/v1/orders';
 
 // Placeholder business rules — replace with real tax-slab / shipping logic when defined.
 const TAX_RATE = 0.05;
@@ -84,52 +81,61 @@ export const initializePayment = async (req, res) => {
     const shipping = SHIPPING_FEE;
     const totalAmount = Math.round((subtotal + tax + shipping) * 100) / 100;
 
-    const cashfreeOrderId = `order_${crypto.randomUUID().replace(/-/g, '')}`;
+    // Razorpay's Orders API assigns its own order id (unlike Cashfree, which
+    // accepted a self-generated one) — so the gateway call has to happen
+    // before the local Order document can be created with it. `receipt` is
+    // just our own correlation reference on Razorpay's side, capped at 40 chars.
+    const receipt = `rcpt_${crypto.randomUUID().replace(/-/g, '')}`.slice(0, 40);
+    // Razorpay wants the amount as an integer in the smallest currency unit (paise).
+    const amountInPaise = Math.round(totalAmount * 100);
+
+    const razorpayResponse = await fetch(RAZORPAY_ORDERS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${Buffer.from(
+          `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`
+        ).toString('base64')}`,
+      },
+      body: JSON.stringify({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt,
+        notes: { userId: req.user._id.toString() },
+      }),
+    });
+
+    const razorpayData = await razorpayResponse.json();
+
+    if (!razorpayResponse.ok || !razorpayData.id) {
+      console.error('Razorpay order creation failed:', razorpayData);
+      return res.status(502).json({ message: 'Payment gateway initialization failed' });
+    }
 
     createdOrder = await Order.create({
       user: req.user._id,
       items: orderItems,
       shippingAddress: { ...shippingAddress, phone: customerPhone },
       financialSummary: { subtotal, shipping, tax, totalAmount },
-      cashfreeOrderId,
+      razorpayOrderId: razorpayData.id,
       paymentStatus: 'pending',
     });
 
-    const cashfreeResponse = await fetch(`${CASHFREE_BASE_URL}/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-client-id': process.env.CASHFREE_APP_ID,
-        'x-client-secret': process.env.CASHFREE_SECRET_KEY,
-        'x-api-version': '2023-08-01',
-      },
-      body: JSON.stringify({
-        order_id: cashfreeOrderId,
-        order_amount: totalAmount,
-        order_currency: 'INR',
-        customer_details: {
-          customer_id: req.user._id.toString(),
-          customer_email: req.user.email,
-          customer_phone: customerPhone,
-        },
-        order_meta: {
-          return_url: `${process.env.CLIENT_URL}/order-result?order_id={order_id}`,
-        },
-      }),
-    });
-
-    const cashfreeData = await cashfreeResponse.json();
-
-    if (!cashfreeResponse.ok || !cashfreeData.payment_session_id) {
-      console.error('Cashfree order creation failed:', cashfreeData);
-      await Order.deleteOne({ _id: createdOrder._id });
-      return res.status(502).json({ message: 'Payment gateway initialization failed' });
-    }
-
     return res.status(201).json({
-      payment_session_id: cashfreeData.payment_session_id,
+      razorpayOrderId: razorpayData.id,
+      amount: amountInPaise,
+      currency: 'INR',
+      // The key ID is the public half of the credential pair (Razorpay's
+      // equivalent of a publishable key) — safe to hand to the browser so it
+      // can open the Checkout widget. The key SECRET never leaves the backend.
+      keyId: process.env.RAZORPAY_KEY_ID,
+      customer: {
+        name: shippingAddress.fullName,
+        email: req.user.email,
+        phone: customerPhone,
+      },
       order: {
-        orderId: createdOrder.cashfreeOrderId,
+        orderId: createdOrder.razorpayOrderId,
         subtotal,
         shipping,
         tax,
@@ -151,52 +157,56 @@ export const initializePayment = async (req, res) => {
   }
 };
 
-export const handleCashfreeWebhook = async (req, res) => {
+export const handleRazorpayWebhook = async (req, res) => {
   try {
-    const signature = req.headers['x-webhook-signature'];
-    const timestamp = req.headers['x-webhook-timestamp'];
+    const signature = req.headers['x-razorpay-signature'];
     const rawBody = req.body;
 
-    if (!signature || !timestamp || !rawBody) {
+    if (!signature || !rawBody) {
       return res.status(400).json({ message: 'Missing webhook signature or payload' });
     }
 
     const rawBodyString = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody);
 
+    // Signed with the Webhook Secret set in Razorpay Dashboard > Settings >
+    // Webhooks when the webhook was created — a different credential from
+    // RAZORPAY_KEY_SECRET, and a plain hex HMAC of the raw body (no
+    // timestamp prefix, unlike Cashfree's scheme).
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.CASHFREE_SECRET_KEY)
-      .update(timestamp + rawBodyString)
-      .digest('base64');
+      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
+      .update(rawBodyString)
+      .digest('hex');
 
     if (expectedSignature !== signature) {
-      console.error('Cashfree webhook signature verification failed');
+      console.error('Razorpay webhook signature verification failed');
       return res.status(401).json({ message: 'Invalid webhook signature' });
     }
 
     const payload = JSON.parse(rawBodyString);
-    const cashfreeOrderId = payload?.data?.order?.order_id;
+    const eventType = payload?.event || 'UNKNOWN_EVENT';
+    const paymentEntity = payload?.payload?.payment?.entity;
+    const razorpayOrderId = paymentEntity?.order_id;
 
-    if (!cashfreeOrderId) {
+    if (!razorpayOrderId) {
       return res.status(400).json({ message: 'Malformed webhook payload' });
     }
 
-    const order = await Order.findOne({ cashfreeOrderId });
+    const order = await Order.findOne({ razorpayOrderId });
 
     if (!order) {
-      console.error(`Cashfree webhook received for unknown order: ${cashfreeOrderId}`);
+      console.error(`Razorpay webhook received for unknown order: ${razorpayOrderId}`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const eventType = payload?.type || 'UNKNOWN_EVENT';
-    const isNewlyPaid = eventType === 'PAYMENT_SUCCESS_WEBHOOK' && order.paymentStatus !== 'paid';
+    // Stock is only ever decremented here, on confirmed payment — not at checkout
+    // initiation — so an abandoned/failed payment never leaves stock reserved.
+    // Known trade-off: under high concurrency two shoppers could both pass the
+    // availability check in initializePayment before either one's webhook lands,
+    // which can drive stock negative here. That's treated as a backorder signal
+    // for the admin to act on rather than a reason to reject an already-captured payment.
+    const isNewlyPaid = eventType === 'payment.captured' && order.paymentStatus !== 'paid';
 
-    if (eventType === 'PAYMENT_SUCCESS_WEBHOOK') {
-      // Stock is only ever decremented here, on confirmed payment — not at checkout
-      // initiation — so an abandoned/failed payment never leaves stock reserved.
-      // Known trade-off: under high concurrency two shoppers could both pass the
-      // availability check in initializePayment before either one's webhook lands,
-      // which can drive stock negative here. That's treated as a backorder signal
-      // for the admin to act on rather than a reason to reject an already-captured payment.
+    if (eventType === 'payment.captured') {
       if (isNewlyPaid) {
         for (const item of order.items) {
           const result = await Product.updateOne(
@@ -206,13 +216,14 @@ export const handleCashfreeWebhook = async (req, res) => {
           );
           if (result.matchedCount === 0) {
             console.error(
-              `Stock decrement failed — no matching variant for product ${item.product} (${item.variant.size}/${item.variant.color}) on order ${cashfreeOrderId}`
+              `Stock decrement failed — no matching variant for product ${item.product} (${item.variant.size}/${item.variant.color}) on order ${razorpayOrderId}`
             );
           }
         }
       }
       order.paymentStatus = 'paid';
-    } else if (eventType === 'PAYMENT_FAILED_WEBHOOK') {
+      order.razorpayPaymentId = paymentEntity.id;
+    } else if (eventType === 'payment.failed') {
       order.paymentStatus = 'failed';
     }
 
@@ -233,7 +244,7 @@ export const handleCashfreeWebhook = async (req, res) => {
 
     return res.status(200).json({ message: 'Webhook processed' });
   } catch (err) {
-    console.error(`handleCashfreeWebhook error: ${err.message}`);
+    console.error(`handleRazorpayWebhook error: ${err.message}`);
     return res.status(500).json({ message: 'Webhook processing failed' });
   }
 };

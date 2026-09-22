@@ -76,7 +76,7 @@ export const sendNewOrderNotificationEmail = async (order) => {
 
   if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.startsWith('temp-placeholder')) {
     console.warn(
-      `RESEND_API_KEY not configured — skipping new-order notification email for order ${order.cashfreeOrderId}.`
+      `RESEND_API_KEY not configured — skipping new-order notification email for order ${order.razorpayOrderId}.`
     );
     return;
   }
@@ -94,10 +94,10 @@ export const sendNewOrderNotificationEmail = async (order) => {
     await getResendClient().emails.send({
       from: FROM_EMAIL,
       to: adminEmail,
-      subject: `New paid order — ${order.cashfreeOrderId}`,
+      subject: `New paid order — ${order.razorpayOrderId}`,
       html: `
         <p>A new order has been paid and needs fulfillment.</p>
-        <p><strong>Order ID:</strong> ${order.cashfreeOrderId}<br/>
+        <p><strong>Order ID:</strong> ${order.razorpayOrderId}<br/>
         <strong>Total:</strong> ₹${order.financialSummary.totalAmount}</p>
         <p><strong>Items:</strong></p>
         <ul>${itemsHtml}</ul>
@@ -110,7 +110,7 @@ export const sendNewOrderNotificationEmail = async (order) => {
       `,
     });
   } catch (err) {
-    console.error(`Failed to send new-order notification email for ${order.cashfreeOrderId}: ${err.message}`);
+    console.error(`Failed to send new-order notification email for ${order.razorpayOrderId}: ${err.message}`);
   }
 };
 
