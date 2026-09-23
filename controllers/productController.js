@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import { cleanupProductMedia } from '../utils/cloudinaryCleanup.js';
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -63,7 +64,8 @@ export const getProductById = async (req, res) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { title, description, basePrice, salePrice, images, category, subcategory, tags, variants } = req.body;
+    const { title, description, basePrice, salePrice, images, lookbookVideo, category, subcategory, tags, variants } =
+      req.body;
 
     const product = await Product.create({
       title,
@@ -71,6 +73,7 @@ export const createProduct = async (req, res) => {
       basePrice,
       salePrice,
       images,
+      lookbookVideo,
       category,
       subcategory,
       tags,
@@ -127,6 +130,8 @@ export const deleteProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
+
+    await cleanupProductMedia(product);
 
     return res.status(200).json({ message: 'Product deleted successfully' });
   } catch (err) {

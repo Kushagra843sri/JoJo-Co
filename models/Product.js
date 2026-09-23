@@ -8,6 +8,17 @@ const imageGroupSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Optional short (~10s) lookbook clip, kept apart from `images` because every
+// consumer of `images[].urls` renders an <img> — a video URL there would show
+// as a broken image on cards, the cart, checkout, and order history.
+const lookbookVideoSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    posterUrl: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
 const variantSchema = new mongoose.Schema(
   {
     size: { type: String, required: true, trim: true },
@@ -35,6 +46,7 @@ const productSchema = new mongoose.Schema(
     basePrice: { type: Number, required: true, min: 0 },
     salePrice: { type: Number, min: 0 },
     images: [imageGroupSchema],
+    lookbookVideo: lookbookVideoSchema,
     category: { type: String, required: true, trim: true },
     subcategory: { type: String, trim: true },
     tags: [{ type: String, trim: true }],
