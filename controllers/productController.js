@@ -96,10 +96,34 @@ export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const product = await Product.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    // Whitelisted so an admin edit can only touch real product fields — never
+    // _id/createdAt/etc. `salePrice`/`lookbookVideo`/`subcategory` may be null
+    // to clear them (an edit that removes a sale or the video must be able to).
+    const editable = [
+      'title',
+      'description',
+      'basePrice',
+      'salePrice',
+      'images',
+      'lookbookVideo',
+      'category',
+      'subcategory',
+      'tags',
+      'variants',
+    ];
+    const set = {};
+    const unset = {};
+    for (const key of editable) {
+      if (!(key in req.body)) continue;
+      if (req.body[key] === null) unset[key] = 1;
+      else set[key] = req.body[key];
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { ...(Object.keys(set).length && { $set: set }), ...(Object.keys(unset).length && { $unset: unset }) },
+      { new: true, runValidators: true }
+    );
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
