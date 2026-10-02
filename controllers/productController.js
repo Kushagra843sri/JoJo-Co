@@ -65,8 +65,19 @@ export const getProductById = async (req, res) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { title, description, basePrice, salePrice, images, lookbookVideo, category, subcategory, tags, variants } =
-      req.body;
+    const {
+      title,
+      description,
+      basePrice,
+      salePrice,
+      images,
+      sizeChartUrls,
+      lookbookVideo,
+      category,
+      subcategory,
+      tags,
+      variants,
+    } = req.body;
 
     const product = await Product.create({
       title,
@@ -74,6 +85,7 @@ export const createProduct = async (req, res) => {
       basePrice,
       salePrice,
       images,
+      sizeChartUrls,
       lookbookVideo,
       category,
       subcategory,
@@ -106,6 +118,7 @@ export const updateProduct = async (req, res) => {
       'basePrice',
       'salePrice',
       'images',
+      'sizeChartUrls',
       'lookbookVideo',
       'category',
       'subcategory',

@@ -47,6 +47,10 @@ const productSchema = new mongoose.Schema(
     basePrice: { type: Number, required: true, min: 0 },
     salePrice: { type: Number, min: 0 },
     images: [imageGroupSchema],
+    // URLs (a subset of `images`) that are size charts rather than photos of the
+    // clothes. Still shown in the product-page gallery, but kept off the home
+    // page strip and used never as a cover photo.
+    sizeChartUrls: [{ type: String, trim: true }],
     lookbookVideo: lookbookVideoSchema,
     category: { type: String, required: true, trim: true },
     subcategory: { type: String, trim: true },

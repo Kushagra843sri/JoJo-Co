@@ -4,7 +4,7 @@ export const getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id })
       .sort({ createdAt: -1 })
-      .populate('items.product', 'title images');
+      .populate('items.product', 'title images sizeChartUrls');
 
     return res.status(200).json({ orders });
   } catch (err) {
@@ -18,7 +18,7 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find({})
       .sort({ createdAt: -1 })
       .populate('user', 'name email')
-      .populate('items.product', 'title images');
+      .populate('items.product', 'title images sizeChartUrls');
 
     return res.status(200).json({ orders });
   } catch (err) {
@@ -43,7 +43,7 @@ export const updateOrderStatus = async (req, res) => {
       { new: true, runValidators: true }
     )
       .populate('user', 'name email')
-      .populate('items.product', 'title images');
+      .populate('items.product', 'title images sizeChartUrls');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
