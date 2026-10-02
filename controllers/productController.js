@@ -5,12 +5,13 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const getAllProducts = async (req, res) => {
   try {
-    const { category, size, search, sort, page, limit } = req.query;
+    const { category, subcategory, size, search, sort, page, limit } = req.query;
 
     const filter = {};
     // Case-insensitive exact match — admin-entered category casing has drifted from
     // the storefront's filter labels before, silently zeroing out catalog results.
     if (category) filter.category = new RegExp(`^${escapeRegex(category)}$`, 'i');
+    if (subcategory) filter.subcategory = new RegExp(`^${escapeRegex(subcategory)}$`, 'i');
     if (size) filter['variants.size'] = size;
     if (search) filter.title = { $regex: escapeRegex(search), $options: 'i' };
 
