@@ -48,7 +48,7 @@ export const initializePayment = async (req, res) => {
         return res.status(400).json({ message: `Product ${item.productId} not found` });
       }
 
-      const variant = product.variants.find((v) => v.size === item.size && v.color === item.color);
+      const variant = product.variants.find((v) => v.size === item.size && (v.color || '') === (item.color || ''));
       if (!variant) {
         return res.status(400).json({ message: `Variant not available for ${product.title}` });
       }
@@ -60,7 +60,7 @@ export const initializePayment = async (req, res) => {
 
       if (variant.stock < quantity) {
         return res.status(400).json({
-          message: `Only ${variant.stock} left in stock for ${product.title} (${item.size}/${item.color})`,
+          message: `Only ${variant.stock} left in stock for ${product.title} (${item.size}${item.color ? `/${item.color}` : ''})`,
         });
       }
 
@@ -210,9 +210,9 @@ export const handleRazorpayWebhook = async (req, res) => {
       if (isNewlyPaid) {
         for (const item of order.items) {
           const result = await Product.updateOne(
-            { _id: item.product, variants: { $elemMatch: { size: item.variant.size, color: item.variant.color } } },
+            { _id: item.product, variants: { $elemMatch: { size: item.variant.size, color: item.variant.color || '' } } },
             { $inc: { 'variants.$[v].stock': -item.quantity } },
-            { arrayFilters: [{ 'v.size': item.variant.size, 'v.color': item.variant.color }] }
+            { arrayFilters: [{ 'v.size': item.variant.size, 'v.color': item.variant.color || '' }] }
           );
           if (result.matchedCount === 0) {
             console.error(

@@ -2,7 +2,9 @@ import mongoose from 'mongoose';
 
 const imageGroupSchema = new mongoose.Schema(
   {
-    color: { type: String, required: true, trim: true },
+    // Legacy per-shade grouping. The storefront no longer has shades — every
+    // group's photos are shown together — so new products use one 'Base' group.
+    color: { type: String, trim: true, default: 'Base' },
     urls: [{ type: String, required: true }],
   },
   { _id: false }
@@ -22,12 +24,11 @@ const lookbookVideoSchema = new mongoose.Schema(
 const variantSchema = new mongoose.Schema(
   {
     size: { type: String, required: true, trim: true },
-    color: { type: String, required: true, trim: true },
-    // Drives the shade-card swatch on the product page and (when no dedicated
-    // photo exists for this color in `images`) a live CSS tint over the base
-    // product photo — lets one photo stand in for every shade instead of
-    // requiring a reshoot per color. Optional so older/seeded variants without
-    // it just fall back to a plain gray swatch and no tint.
+    // Shades were removed from the storefront and admin; a variant is now just
+    // size + SKU + stock. Kept optional (defaults to '') only so variants saved
+    // before that change keep matching their existing orders and stock.
+    color: { type: String, trim: true, default: '' },
+    // Unused now (was the shade-card swatch); retained so old documents validate.
     colorHex: {
       type: String,
       trim: true,

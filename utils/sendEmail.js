@@ -84,7 +84,7 @@ export const sendNewOrderNotificationEmail = async (order) => {
   const itemsHtml = order.items
     .map(
       (item) =>
-        `<li>${item.quantity} × ${item.product?.title || 'Unknown product'} (${item.variant.size} / ${item.variant.color})</li>`
+        `<li>${item.quantity} × ${item.product?.title || 'Unknown product'} (${item.variant.size}${item.variant.color ? ` / ${item.variant.color}` : ''})</li>`
     )
     .join('');
 
