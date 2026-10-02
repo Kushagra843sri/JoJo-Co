@@ -94,6 +94,7 @@ export const loginUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      phone: user.phone,
       emailVerified: user.emailVerified,
     });
   } catch (err) {
@@ -108,6 +109,7 @@ export const getProfile = async (req, res) => {
     name: req.user.name,
     email: req.user.email,
     role: req.user.role,
+    phone: req.user.phone,
     shippingAddress: req.user.shippingAddress,
     emailVerified: req.user.emailVerified,
   });
@@ -115,9 +117,10 @@ export const getProfile = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const { name, shippingAddress } = req.body;
+    const { name, phone, shippingAddress } = req.body;
 
     if (name !== undefined) req.user.name = name;
+    if (phone !== undefined) req.user.phone = phone;
     if (shippingAddress !== undefined) req.user.shippingAddress = shippingAddress;
 
     await req.user.save();
@@ -127,6 +130,7 @@ export const updateProfile = async (req, res) => {
       name: req.user.name,
       email: req.user.email,
       role: req.user.role,
+      phone: req.user.phone,
       shippingAddress: req.user.shippingAddress,
       emailVerified: req.user.emailVerified,
     });
