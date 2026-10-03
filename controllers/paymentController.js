@@ -5,8 +5,9 @@ import { sendNewOrderNotificationEmail } from '../utils/sendEmail.js';
 
 const RAZORPAY_ORDERS_URL = 'https://api.razorpay.com/v1/orders';
 
-// Placeholder business rules — replace with real tax-slab / shipping logic when defined.
-const TAX_RATE = 0.05;
+// The store does not charge GST/tax, so the order total is just the items (+ shipping).
+// Kept as a constant (not deleted) so orders still record `tax: 0`; change here if that ever changes.
+const TAX_RATE = 0;
 const SHIPPING_FEE = 0;
 
 export const initializePayment = async (req, res) => {
