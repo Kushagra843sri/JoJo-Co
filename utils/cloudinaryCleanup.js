@@ -62,6 +62,7 @@ export const cleanupProductMedia = async (product) => {
   try {
     const urls = [
       ...(product.images || []).flatMap((group) => group.urls || []),
+      ...(product.sizeChartUrls || []),
       product.lookbookVideo?.url,
     ].filter(Boolean);
     if (urls.length === 0) return;
@@ -69,11 +70,21 @@ export const cleanupProductMedia = async (product) => {
     // Skip any file another product still points at, so deleting one product
     // can never break another's photos.
     const stillUsed = await Product.find(
-      { $or: [{ 'images.urls': { $in: urls } }, { 'lookbookVideo.url': { $in: urls } }] },
-      { images: 1, lookbookVideo: 1 }
+      {
+        $or: [
+          { 'images.urls': { $in: urls } },
+          { sizeChartUrls: { $in: urls } },
+          { 'lookbookVideo.url': { $in: urls } },
+        ],
+      },
+      { images: 1, sizeChartUrls: 1, lookbookVideo: 1 }
     ).lean();
     const usedUrls = new Set(
-      stillUsed.flatMap((p) => [...(p.images || []).flatMap((g) => g.urls || []), p.lookbookVideo?.url])
+      stillUsed.flatMap((p) => [
+        ...(p.images || []).flatMap((g) => g.urls || []),
+        ...(p.sizeChartUrls || []),
+        p.lookbookVideo?.url,
+      ])
     );
 
     await destroyCloudinaryAssets(urls.filter((url) => !usedUrls.has(url)));

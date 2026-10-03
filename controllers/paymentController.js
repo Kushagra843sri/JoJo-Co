@@ -66,7 +66,7 @@ export const initializePayment = async (req, res) => {
 
       // Price always comes from the DB record we just fetched — the frontend's
       // cart payload is never trusted for money-affecting values.
-      const unitPrice = product.salePrice != null ? product.salePrice : product.basePrice;
+      const unitPrice = product.salePrice > 0 ? product.salePrice : product.basePrice;
       subtotal += unitPrice * quantity;
 
       orderItems.push({

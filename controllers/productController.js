@@ -1,6 +1,13 @@
 import Product from '../models/Product.js';
 import { cleanupProductMedia } from '../utils/cloudinaryCleanup.js';
 
+// A sale price of 0 (or blank/invalid) means "no sale" — saving it as a real price
+// made the storefront show ₹0. Returns undefined when there is no valid sale.
+const cleanSalePrice = (value) => {
+  const n = Number(value);
+  return value != null && value !== '' && Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const getAllProducts = async (req, res) => {
@@ -83,7 +90,7 @@ export const createProduct = async (req, res) => {
       title,
       description,
       basePrice,
-      salePrice,
+      salePrice: cleanSalePrice(salePrice),
       images,
       sizeChartUrls,
       lookbookVideo,
@@ -129,7 +136,11 @@ export const updateProduct = async (req, res) => {
     const unset = {};
     for (const key of editable) {
       if (!(key in req.body)) continue;
-      if (req.body[key] === null) unset[key] = 1;
+      if (key === 'salePrice') {
+        const sale = cleanSalePrice(req.body.salePrice);
+        if (sale === undefined) unset.salePrice = 1;
+        else set.salePrice = sale;
+      } else if (req.body[key] === null) unset[key] = 1;
       else set[key] = req.body[key];
     }
 
