@@ -23,6 +23,8 @@ const lookbookVideoSchema = new mongoose.Schema(
 
 const variantSchema = new mongoose.Schema(
   {
+    // The size label shoppers see and orders/stock match on: a letter size ("M"), a numeric
+    // size ("30"), or both ("M / 30") — the admin form composes it from two columns.
     size: { type: String, required: true, trim: true },
     // Shades were removed from the storefront and admin; a variant is now just
     // size + SKU + stock. Kept optional (defaults to '') only so variants saved

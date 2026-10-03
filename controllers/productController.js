@@ -19,7 +19,7 @@ export const getAllProducts = async (req, res) => {
     // the storefront's filter labels before, silently zeroing out catalog results.
     if (category) filter.category = new RegExp(`^${escapeRegex(category)}$`, 'i');
     if (subcategory) filter.subcategory = new RegExp(`^${escapeRegex(subcategory)}$`, 'i');
-    if (size) filter['variants.size'] = size;
+    if (size) filter['variants.size'] = new RegExp(`^${escapeRegex(size)}( / .*)?$`, 'i');
     if (search) filter.title = { $regex: escapeRegex(search), $options: 'i' };
 
     const sortOption = {};
