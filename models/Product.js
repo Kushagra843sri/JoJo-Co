@@ -59,6 +59,8 @@ const productSchema = new mongoose.Schema(
     tags: [{ type: String, trim: true }],
     variants: [variantSchema],
     isFeatured: { type: Boolean, default: false },
+    // Ticked in the admin form; these products make up the home page Best Seller section.
+    isBestSeller: { type: Boolean, default: false },
     averageRating: { type: Number, default: 0, min: 0, max: 5 },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: false } }

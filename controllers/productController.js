@@ -23,7 +23,7 @@ const skuConflictResponse = async (err, res, selfId) => {
 
 export const getAllProducts = async (req, res) => {
   try {
-    const { category, subcategory, size, search, sort, page, limit } = req.query;
+    const { category, subcategory, size, search, sort, page, limit, bestSeller } = req.query;
 
     const filter = {};
     // Case-insensitive exact match — admin-entered category casing has drifted from
@@ -31,6 +31,7 @@ export const getAllProducts = async (req, res) => {
     if (category) filter.category = new RegExp(`^${escapeRegex(category)}$`, 'i');
     if (subcategory) filter.subcategory = new RegExp(`^${escapeRegex(subcategory)}$`, 'i');
     if (size) filter['variants.size'] = new RegExp(`^${escapeRegex(size)}( / .*)?$`, 'i');
+    if (bestSeller === 'true') filter.isBestSeller = true;
     if (search) filter.title = { $regex: escapeRegex(search), $options: 'i' };
 
     const sortOption = {};
@@ -95,6 +96,7 @@ export const createProduct = async (req, res) => {
       subcategory,
       tags,
       variants,
+      isBestSeller,
     } = req.body;
 
     const product = await Product.create({
@@ -109,6 +111,7 @@ export const createProduct = async (req, res) => {
       subcategory,
       tags,
       variants,
+      isBestSeller: !!isBestSeller,
     });
 
     return res.status(201).json(product);
@@ -144,6 +147,7 @@ export const updateProduct = async (req, res) => {
       'subcategory',
       'tags',
       'variants',
+      'isBestSeller',
     ];
     const set = {};
     const unset = {};
