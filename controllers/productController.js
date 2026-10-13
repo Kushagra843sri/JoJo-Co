@@ -1,5 +1,6 @@
 import Product from '../models/Product.js';
-import { cleanupProductMedia } from '../utils/cloudinaryCleanup.js';
+import Review from '../models/Review.js';
+import { destroyCloudinaryAssets, cleanupProductMedia } from '../utils/cloudinaryCleanup.js';
 
 // A sale price of 0 (or blank/invalid) means "no sale" — saving it as a real price
 // made the storefront show ₹0. Returns undefined when there is no valid sale.
@@ -200,6 +201,12 @@ export const deleteProduct = async (req, res) => {
     }
 
     await cleanupProductMedia(product);
+
+    // The product's reviews (and their customer photos) go with it.
+    const reviews = await Review.find({ product: id }).select('photos').lean();
+    await Review.deleteMany({ product: id });
+    const reviewPhotos = reviews.flatMap((r) => r.photos);
+    if (reviewPhotos.length) destroyCloudinaryAssets(reviewPhotos);
 
     return res.status(200).json({ message: 'Product deleted successfully' });
   } catch (err) {
