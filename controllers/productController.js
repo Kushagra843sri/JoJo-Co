@@ -10,6 +10,17 @@ const cleanSalePrice = (value) => {
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// variants.sku is unique across the whole catalog. On a clash, tell the admin which
+// SKU and which product already owns it instead of a generic 500.
+const skuConflictResponse = async (err, res, selfId) => {
+  const sku = err.keyValue?.['variants.sku'];
+  if (!sku) return false;
+  const other = await Product.findOne({ 'variants.sku': sku, ...(selfId && { _id: { $ne: selfId } }) }, 'title');
+  const owner = other ? ` It is already used by "${other.title}".` : '';
+  res.status(409).json({ message: `SKU "${sku}" is already in use.${owner} Each SKU must be unique across all products.` });
+  return true;
+};
+
 export const getAllProducts = async (req, res) => {
   try {
     const { category, subcategory, size, search, sort, page, limit } = req.query;
@@ -104,6 +115,8 @@ export const createProduct = async (req, res) => {
   } catch (err) {
     console.error(`createProduct error: ${err.message}`);
 
+    if (err.code === 11000 && (await skuConflictResponse(err, res))) return;
+
     if (err.name === 'ValidationError') {
       return res.status(400).json({ message: err.message });
     }
@@ -157,6 +170,8 @@ export const updateProduct = async (req, res) => {
     return res.status(200).json(product);
   } catch (err) {
     console.error(`updateProduct error: ${err.message}`);
+
+    if (err.code === 11000 && (await skuConflictResponse(err, res, req.params.id))) return;
 
     if (err.name === 'CastError') {
       return res.status(404).json({ message: 'Product not found' });
